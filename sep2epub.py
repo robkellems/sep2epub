@@ -1,6 +1,8 @@
 import requests
 from bs4 import BeautifulSoup
 from ebooklib import epub
+import argparse
+import time
 
 def get_article(url: str) -> BeautifulSoup:
     response = requests.get(url)
@@ -65,18 +67,36 @@ def create_epub(url: str, article: BeautifulSoup, footnotes: BeautifulSoup):
     # Write to file
     book.add_item(epub.EpubNcx())
     book.add_item(epub.EpubNav())
-    epub.write_epub(f"{title}.epub", book)
+    filename = title + ".epub"
+    epub.write_epub(filename, book)
 
-if __name__ == "__main__":
-    url = "https://plato.stanford.edu/entries/kant/"
+    print(f"Successfully created epub: {filename}")
 
+def processUrl(url: str):
     article = get_article(url)
     if not article:
         print(f"ERROR: failed to fetch {url}, exiting sep2epub...")
-        exit()
+        return None
 
     footnotes = get_article(url + "notes.html")
     if not footnotes:
         print(f"INFO: no footnotes page found for {url}, continuing...")
 
     create_epub(url, article, footnotes)
+
+if __name__ == "__main__":
+    parser = argparse.ArgumentParser()
+    parser.add_argument("input", type=str, help="SEP article URL, e.g. https://plato.stanford.edu/entries/kant/ OR .txt file containing one URL per line.")
+    args = parser.parse_args()
+
+    if args.input[0:5] == "https":
+        processUrl(args.input)
+    elif args.input[-4:] == ".txt":
+        with open(args.input, "r") as f:
+            for i, line in enumerate(f):
+                if i != 0:
+                    # Per SEP's robot.txt
+                    time.sleep(5)
+                processUrl(line.strip())
+    else:
+        print("ERROR: invalid input, provide either a URL or a .txt file")
