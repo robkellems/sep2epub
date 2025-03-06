@@ -6,17 +6,14 @@ def get_article(url: str) -> BeautifulSoup:
     response = requests.get(url)
 
     if response.status_code != 200:
-        raise Exception(f"Failed to fetch page {url}, returned {response.status_code}")
+        return None
 
     soup = BeautifulSoup(response.text, "html.parser")
     article_div = soup.find("div", {"id": "article"})
 
-    if not article_div:
-        raise Exception(f"Could not find article content in page {url}")
-
     return article_div
 
-def create_epub(url: str, article: BeautifulSoup):
+def create_epub(url: str, article: BeautifulSoup, footnotes: BeautifulSoup):
     book = epub.EpubBook()
 
     book.set_identifier(url)
@@ -37,17 +34,49 @@ def create_epub(url: str, article: BeautifulSoup):
     title = article_content.find("h1").text + " (Stanford Encyclopedia of Philosophy)"
     book.set_title(title)
 
-    content_page = epub.EpubHtml(title="Content", file_name="content.xhtml", lang="en")
-    content_page.set_content(str(article_content))
-    book.add_item(content_page)
+    # Footnotes
+    if footnotes:
+        footnotes_content = footnotes.find(id="article-content").find(id="aueditable")
+
+        # Link footnote to annotation
+        for note in footnotes_content.find_all("a", href=True):
+            note["href"] = note["href"].replace("index.html#", "content.xhtml#")
+        
+        footnotes_page = epub.EpubHtml(title="Footnotes", file_name="footnotes.xhtml", lang="en")
+        footnotes_page.set_content(str(footnotes_content))
+        book.add_item(footnotes_page)
+
+        # Link annotation to footnote
+        for note in article_content.find_all("a", href=True):
+            note["href"] = note["href"].replace("notes.html#", "footnotes.xhtml#")
+
+        content_page = epub.EpubHtml(title="Content", file_name="content.xhtml", lang="en")
+        content_page.set_content(str(article_content))
+        book.add_item(content_page)
+
+        book.spine = ["nav", copyright_page, content_page, footnotes_page]
+    else:
+        content_page = epub.EpubHtml(title="Content", file_name="content.xhtml", lang="en")
+        content_page.set_content(str(article_content))
+        book.add_item(content_page)
+
+        book.spine = ["nav", copyright_page, content_page]
 
     # Write to file
-    book.spine = ["nav", copyright_page, content_page]
     book.add_item(epub.EpubNcx())
     book.add_item(epub.EpubNav())
     epub.write_epub(f"{title}.epub", book)
 
 if __name__ == "__main__":
     url = "https://plato.stanford.edu/entries/kant/"
+
     article = get_article(url)
-    create_epub(url, article)
+    if not article:
+        print(f"ERROR: failed to fetch {url}, exiting sep2epub...")
+        exit()
+
+    footnotes = get_article(url + "notes.html")
+    if not footnotes:
+        print(f"INFO: no footnotes page found for {url}, continuing...")
+
+    create_epub(url, article, footnotes)
