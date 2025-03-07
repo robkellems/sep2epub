@@ -36,6 +36,13 @@ def create_epub(url: str, article: BeautifulSoup, footnotes: BeautifulSoup):
     title = article_content.find("h1").text + " (Stanford Encyclopedia of Philosophy)"
     book.set_title(title)
 
+    for note in article_content.find_all("a", href=True):
+        note["href"] = note["href"].replace("notes.html#", "footnotes.xhtml#")
+
+    content_page = epub.EpubHtml(title="Content", file_name="content.xhtml", lang="en")
+    content_page.set_content(str(article_content))
+    book.add_item(content_page)
+
     # Footnotes
     if footnotes:
         footnotes_content = footnotes.find(id="article-content").find(id="aueditable")
@@ -48,20 +55,8 @@ def create_epub(url: str, article: BeautifulSoup, footnotes: BeautifulSoup):
         footnotes_page.set_content(str(footnotes_content))
         book.add_item(footnotes_page)
 
-        # Link annotation to footnote
-        for note in article_content.find_all("a", href=True):
-            note["href"] = note["href"].replace("notes.html#", "footnotes.xhtml#")
-
-        content_page = epub.EpubHtml(title="Content", file_name="content.xhtml", lang="en")
-        content_page.set_content(str(article_content))
-        book.add_item(content_page)
-
         book.spine = ["nav", copyright_page, content_page, footnotes_page]
     else:
-        content_page = epub.EpubHtml(title="Content", file_name="content.xhtml", lang="en")
-        content_page.set_content(str(article_content))
-        book.add_item(content_page)
-
         book.spine = ["nav", copyright_page, content_page]
 
     # Write to file
