@@ -72,7 +72,7 @@ def create_epub(url: str, article: BeautifulSoup, footnotes: BeautifulSoup):
 
     print(f"Successfully created epub: {filename}")
 
-def processUrl(url: str):
+def process_url(url: str):
     article = get_article(url)
     if not article:
         print(f"ERROR: failed to fetch {url}, exiting sep2epub...")
@@ -90,13 +90,13 @@ if __name__ == "__main__":
     args = parser.parse_args()
 
     if args.input[0:5] == "https":
-        processUrl(args.input)
+        process_url(args.input)
     elif args.input[-4:] == ".txt":
         with open(args.input, "r") as f:
             for i, line in enumerate(f):
                 if i != 0:
                     # Per SEP's robot.txt
                     time.sleep(5)
-                processUrl(line.strip())
+                process_url(line.strip())
     else:
         print("ERROR: invalid input, provide either a URL or a .txt file")
