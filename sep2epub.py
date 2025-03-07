@@ -3,6 +3,12 @@ from bs4 import BeautifulSoup
 from ebooklib import epub
 import argparse
 import time
+import re
+import matplotlib.pyplot as plt
+import io
+import base64
+
+latex_regex = re.compile(r'\\\(([\s\S]*?)\\\)|\\\[([\s\S]*?)\\\]')
 
 def get_article(url: str) -> BeautifulSoup:
     response = requests.get(url)
@@ -14,6 +20,29 @@ def get_article(url: str) -> BeautifulSoup:
     article_div = soup.find("div", {"id": "article"})
 
     return article_div
+
+def render_latex_as_image(latex: str) -> str:
+    # Create plot with rendered LaTeX
+    fig, ax = plt.subplots(figsize=(0.01, 0.01))
+    ax.text(0.5, 0.5, f"${latex}$", fontsize=10, ha='center', va='center')
+    ax.set_axis_off()
+
+    # Write the plot to buffer as png
+    buffer = io.BytesIO()
+    plt.savefig(buffer, format='png', bbox_inches='tight', pad_inches=0, transparent=True)
+    plt.close(fig)
+    buffer.seek(0)
+    
+    # Encode the png and convert to a string to be inserted into XHTML
+    return "data:image/png;base64," + base64.b64encode(buffer.getvalue()).decode('utf-8')
+
+def replace_latex(content: str) -> str:
+    def replacer(match: re.Match) -> str:
+        latex = (match.group(1) or match.group(2)).replace("\n", "")
+        image_data = render_latex_as_image(latex)
+        return f'<img src="{image_data}" alt="{latex}"> '
+        
+    return latex_regex.sub(replacer, content)
 
 def create_epub(url: str, article: BeautifulSoup, footnotes: BeautifulSoup):
     book = epub.EpubBook()
@@ -39,8 +68,11 @@ def create_epub(url: str, article: BeautifulSoup, footnotes: BeautifulSoup):
     for note in article_content.find_all("a", href=True):
         note["href"] = note["href"].replace("notes.html#", "footnotes.xhtml#")
 
+    article_content_string = str(article_content)
+    article_content_string = replace_latex(article_content_string)
+
     content_page = epub.EpubHtml(title="Content", file_name="content.xhtml", lang="en")
-    content_page.set_content(str(article_content))
+    content_page.set_content(article_content_string)
     book.add_item(content_page)
 
     # Footnotes
