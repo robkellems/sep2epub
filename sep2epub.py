@@ -21,6 +21,15 @@ def get_article(url: str) -> BeautifulSoup:
 
     return article_div
 
+def get_and_encode_image(url: str) -> str:
+    response = requests.get(url)
+
+    if response.status_code != 200:
+        return None
+    
+    mime_type = response.headers['Content-Type']
+    return f"data:{mime_type};base64," + base64.b64encode(response.content).decode('utf-8')
+
 def render_latex_as_image(latex: str) -> str:
     # Create plot with rendered LaTeX
     fig, ax = plt.subplots(figsize=(0.01, 0.01))
@@ -67,6 +76,14 @@ def create_epub(url: str, article: BeautifulSoup, footnotes: BeautifulSoup):
 
     for note in article_content.find_all("a", href=True):
         note["href"] = note["href"].replace("notes.html#", "footnotes.xhtml#")
+
+    for image_tag in article_content.find_all("img"):
+        image_url = url + image_tag["src"]
+        encoded_image = get_and_encode_image(image_url)
+        if encoded_image:
+            image_tag["src"] = encoded_image
+        else:
+            print(f"INFO: failed to find image at {image_url}")
 
     article_content_string = str(article_content)
     article_content_string = replace_latex(article_content_string)
