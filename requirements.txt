@@ -1,0 +1,4 @@
+beautifulsoup4>=4.13.3
+EbookLib>=0.18
+matplotlib>=3.10.1
+requests>=2.32.3
